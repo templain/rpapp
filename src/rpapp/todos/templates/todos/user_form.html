@@ -1,0 +1,14 @@
+{% extends "todos/base.html" %}
+{% block title %}ユーザー登録{% endblock %}
+{% block content %}
+<h1>Gluu Serverにユーザーを登録</h1>
+<p>ユーザー情報はGluu ServerのSCIM APIに送信され、このアプリのSQLiteには保存されません。</p>
+<form class="card" method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <div class="actions">
+    <button type="submit">登録</button>
+    <a href="{% url 'user-list' %}">キャンセル</a>
+  </div>
+</form>
+{% endblock %}

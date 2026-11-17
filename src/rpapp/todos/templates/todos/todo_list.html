@@ -1,0 +1,25 @@
+{% extends "todos/base.html" %}
+{% block title %}Todo一覧{% endblock %}
+{% block content %}
+<div class="row">
+  <div><h1>Todo一覧</h1><p class="muted">{{ user.get_username }} さんのTodo</p></div>
+  <a class="button" href="{% url 'todo-create' %}">Todoを追加</a>
+</div>
+{% for todo in todos %}
+  <article class="card row">
+    <div>
+      <h2>{% if todo.is_completed %}✓ {% endif %}{{ todo.title }}</h2>
+      {% if todo.description %}<p>{{ todo.description|linebreaksbr }}</p>{% endif %}
+      <time datetime="{{ todo.created_at|date:'c' }}">作成: {{ todo.created_at|date:"Y年n月j日 H:i" }}</time>
+    </div>
+    <div class="actions">
+      <a href="{% url 'todo-update' todo.pk %}">編集</a>
+      <form class="inline" method="post" action="{% url 'todo-delete' todo.pk %}">
+        {% csrf_token %}<button class="danger" type="submit">削除</button>
+      </form>
+    </div>
+  </article>
+{% empty %}
+  <p class="card">Todoはまだありません。</p>
+{% endfor %}
+{% endblock %}

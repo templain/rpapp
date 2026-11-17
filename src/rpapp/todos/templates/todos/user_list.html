@@ -1,0 +1,27 @@
+{% extends "todos/base.html" %}
+{% block title %}ユーザー管理{% endblock %}
+{% block content %}
+<div class="row">
+  <h1>ユーザー管理（Gluu SCIM）</h1>
+  <a class="button" href="{% url 'user-create' %}">ユーザーを登録</a>
+</div>
+{% if users %}
+<div class="card">
+  <table>
+    <thead><tr><th>ユーザー名</th><th>氏名</th><th>メール</th><th>状態</th></tr></thead>
+    <tbody>
+      {% for account in users %}
+      <tr>
+        <td>{{ account.userName }}</td>
+        <td>{{ account.name.givenName }} {{ account.name.familyName }}</td>
+        <td>{% for email in account.emails %}{% if email.primary %}{{ email.value }}{% endif %}{% empty %}—{% endfor %}</td>
+        <td>{% if account.active %}有効{% else %}無効{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="card">ユーザーはいないか、SCIM APIから取得できませんでした。</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "todos/base.html" %}
+{% block title %}{{ heading }}{% endblock %}
+{% block content %}
+<h1>{{ heading }}</h1>
+<form class="card" method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <div class="actions">
+    <button type="submit">保存</button>
+    <a href="{% url 'todo-list' %}">キャンセル</a>
+  </div>
+</form>
+{% endblock %}

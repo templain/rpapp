@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Todo{% endblock %} | RP App</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; color: #172033; background: #f3f5f9; }
+    body { margin: 0; }
+    header { background: #172033; color: white; padding: 1rem max(1rem, calc((100% - 900px) / 2)); display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+    header a { color: white; }
+    main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: white; border: 1px solid #dfe4ec; border-radius: .6rem; padding: 1.2rem; margin: 1rem 0; }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    .actions { display: flex; gap: .75rem; align-items: center; }
+    label { display: block; font-weight: 600; margin: 1rem 0 .35rem; }
+    input, textarea { box-sizing: border-box; width: 100%; padding: .65rem; border: 1px solid #aeb8c8; border-radius: .35rem; font: inherit; }
+    input[type=checkbox] { width: auto; }
+    button, .button { display: inline-block; padding: .6rem .9rem; border: 0; border-radius: .35rem; background: #275dad; color: white; text-decoration: none; font: inherit; cursor: pointer; }
+    .danger { background: #a52c36; }
+    .muted, time { color: #5b6575; }
+    .message { padding: .75rem; background: #e8f4eb; border-radius: .35rem; }
+    .errorlist { color: #a52c36; }
+    form.inline { display: inline; }
+    table { width: 100%; border-collapse: collapse; background: white; }
+    th, td { padding: .7rem; text-align: left; border-bottom: 1px solid #dfe4ec; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="{% url 'todo-list' %}"><strong>RP App</strong></a>
+    <nav class="actions">
+      <a href="{% url 'todo-list' %}">Todo</a>
+      {% if user.is_staff %}<a href="{% url 'user-list' %}">ユーザー管理</a>{% endif %}
+      <a href="{% url 'oidc_logout' %}">ログアウト</a>
+    </nav>
+  </header>
+  <main>
+    {% for message in messages %}<p class="message">{{ message }}</p>{% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
