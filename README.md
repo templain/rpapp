@@ -12,10 +12,15 @@ cp .env.sample .env
 # .env を編集して Gluu のOIDC/SCIM設定と秘密鍵を入力
 uv run python manage.py migrate
 uv run python manage.py createsuperuser
-uv run python manage.py runserver
+uv run python manage.py runsslserver 127.0.0.1:8000
 ```
 
 `.venv`を直接使う場合は、`python -m venv .venv`、`.venv/bin/pip install -r requirements.txt`、`.env.sample`を`.env`にコピーして設定、`.venv/bin/python manage.py ...` の順に実行できます。既にプロセス環境に設定されている値は`.env`の値より優先されます。
+
+起動後は `https://127.0.0.1:8000/` にアクセスします。`django-sslserver`の既定証明書は開発用の自己署名証明書です。ブラウザーに証明書警告が表示されるため、ローカル開発用途に限って使用してください。本番環境では、信頼された証明書を設定したリバースプロキシ等でTLSを終端してください。独自の証明書と秘密鍵を指定する場合は、`uv run python manage.py help runsslserver`でオプションを確認して指定します。
+
+この開発URLをGluuのクライアント設定から利用する場合、Login Redirect URIには `https://127.0.0.1:8000/oidc/callback/` を登録してください。ホスト名やポートを変えた場合は、実際にブラウザーからアクセスするHTTPS URLに合わせて変更します。
+Gluuからログアウト後に戻るURI `https://127.0.0.1:8000/` も、クライアントのPost Logout Redirect URIsに登録してください。
 
 `createsuperuser`で登録したアカウントは`/django-admin/`で使えます。Gluu OIDCでログインするアカウントに管理画面アクセス権を付与するには、Djangoシェルで該当ユーザーに`is_staff=True`を設定してください。管理者用画面は`/manage/users/`です。
 
@@ -27,13 +32,14 @@ uv run python manage.py runserver
 | --- | --- |
 | `DJANGO_SECRET_KEY` | Djangoセッション署名鍵。本番環境では必ずランダムな秘密値を設定 |
 | `DJANGO_DEBUG` | `true`でデバッグ有効（既定値`false`） |
-| `DJANGO_ALLOWED_HOSTS` | 許可ホストのカンマ区切り。既定値`localhost,127.0.0.1,falcon` |
+| `DJANGO_ALLOWED_HOSTS` | Djangoが受け付けるHostヘッダーのカンマ区切り（Webサーバーのバインド先とは別）。既定値`localhost,127.0.0.1,falcon` |
 | `GLUU_OIDC_CLIENT_ID` / `GLUU_OIDC_CLIENT_SECRET` | Gluuで発行したOIDCクライアント資格情報 |
 | `GLUU_OIDC_ISSUER` | OIDC issuer |
 | `GLUU_OIDC_AUTHORIZATION_ENDPOINT` | 認可エンドポイント |
 | `GLUU_OIDC_TOKEN_ENDPOINT` | トークンエンドポイント |
 | `GLUU_OIDC_USERINFO_ENDPOINT` | UserInfoエンドポイント |
 | `GLUU_OIDC_JWKS_ENDPOINT` | 署名検証用JWKSエンドポイント |
+| `GLUU_OIDC_END_SESSION_ENDPOINT` | OIDCディスカバリー情報の`end_session_endpoint` |
 | `GLUU_OIDC_SIGN_ALGO` | IDトークン署名アルゴリズム（既定値`RS256`） |
 | `GLUU_SCIM_BASE_URL` | Gluu SCIM APIのベースURL（`/Users`を含めない） |
 | `GLUU_SCIM_BEARER_TOKEN` | SCIM API用Bearerトークン |

@@ -13,7 +13,7 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() == "true"
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.environ.get(
-        "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,falcon"
+        "DJANGO_ALLOWED_HOSTS", "127.0.0.1"
     ).split(",")
     if host.strip()
 ]
@@ -25,8 +25,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "mozilla_django_oidc",
     "rpapp.todos",
+    "sslserver",
+    "mozilla_django_oidc",
 ]
 
 MIDDLEWARE = [
@@ -74,6 +75,10 @@ LOGIN_URL = "/oidc/authenticate/"
 LOGIN_REDIRECT_URL = "/todos/"
 LOGOUT_REDIRECT_URL = "/"
 
+OIDC_OP_LOGOUT_ENDPOINT = os.environ.get("GLUU_OIDC_END_SESSION_ENDPOINT", "")
+OIDC_OP_LOGOUT_URL_METHOD = "rpapp.todos.oidc.build_logout_url"
+OIDC_STORE_ID_TOKEN = True
+
 OIDC_RP_CLIENT_ID = os.environ.get("GLUU_OIDC_CLIENT_ID", "")
 OIDC_RP_CLIENT_SECRET = os.environ.get("GLUU_OIDC_CLIENT_SECRET", "")
 OIDC_RP_SIGN_ALGO = os.environ.get("GLUU_OIDC_SIGN_ALGO", "RS256")
@@ -83,7 +88,8 @@ OIDC_OP_TOKEN_ENDPOINT = os.environ.get("GLUU_OIDC_TOKEN_ENDPOINT", "")
 OIDC_OP_USER_ENDPOINT = os.environ.get("GLUU_OIDC_USERINFO_ENDPOINT", "")
 OIDC_OP_JWKS_ENDPOINT = os.environ.get("GLUU_OIDC_JWKS_ENDPOINT", "")
 OIDC_RP_SCOPES = "openid email profile"
-OIDC_VERIFY_SSL = True
+OIDC_TOKEN_USE_BASIC_AUTH = True
+OIDC_VERIFY_SSL = True if os.environ.get("GLUU_OIDC_VERIFY_SSL", "true").lower() == "true" else False
 OIDC_USE_NONCE = True
 OIDC_CREATE_USER = True
 

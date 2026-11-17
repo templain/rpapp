@@ -32,7 +32,10 @@
     <nav class="actions">
       <a href="{% url 'todo-list' %}">Todo</a>
       {% if user.is_staff %}<a href="{% url 'user-list' %}">ユーザー管理</a>{% endif %}
-      <a href="{% url 'oidc_logout' %}">ログアウト</a>
+      <form class="inline" method="post" action="{% url 'oidc_logout' %}">
+        {% csrf_token %}
+        <button type="submit">ログアウト</button>
+      </form>
     </nav>
   </header>
   <main>
