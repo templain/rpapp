@@ -336,6 +336,42 @@ class GluuOIDCAdminPermissionTests(TestCase):
         self.user.refresh_from_db()
         self.assertTrue(self.user.is_staff)
 
+    def test_given_and_family_name_claims_are_saved(self):
+        self.userinfo.update({"given_name": "Taro", "family_name": "Yamada"})
+
+        self.backend.get_or_create_user(
+            "access-token",
+            "id-token",
+            {"user_permission": "user"},
+        )
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, "Taro")
+        self.assertEqual(self.user.last_name, "Yamada")
+
+    def test_full_name_claim_is_saved_when_parts_are_unavailable(self):
+        self.userinfo["name"] = "山田 太郎"
+
+        self.backend.get_or_create_user(
+            "access-token",
+            "id-token",
+            {"user_permission": "user"},
+        )
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, "山田 太郎")
+
+    def test_todo_page_displays_full_name_instead_of_username(self):
+        self.user.first_name = "Taro"
+        self.user.last_name = "Yamada"
+        self.user.save(update_fields=["first_name", "last_name"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("todo-list"))
+
+        self.assertContains(response, "Taro Yamada さんのTodo")
+        self.assertNotContains(response, "oidc-user さんのTodo")
+
     def test_missing_admin_claim_revokes_staff_on_next_login(self):
         self.user.is_staff = True
         self.user.save(update_fields=["is_staff"])

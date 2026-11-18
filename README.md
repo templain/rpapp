@@ -30,6 +30,8 @@ Gluuからログアウト後に戻るURI `https://127.0.0.1:8000/` も、クラ�
 
 OIDCログイン要求では`openid email profile view_profile`のscopeを要求します。Gluuクライアントで`view_profile`を許可し、そのscopeのClaimsにoxAuth claim nameが`user_permission`のclaimを含めてください。claimはIDトークンまたはUserInfoのいずれかで返される必要があります。
 
+Todo一覧のユーザー表示名は、Gluu UserInfoの`given_name`と`family_name`を優先して使用します。これらがない場合は`name`を使用し、名前claimがない場合に限り匿名化されたDjango usernameを表示します。Gluuクライアントから標準OIDCのプロフィールclaimを返すよう設定してください。
+
 
 ユーザー登録画面で指定した初期パスワードは、SCIM `POST /Users`のトップレベル`password`属性としてGluuへ送信されます。権限はGluuのUser拡張スキーマ内の多値属性`role`に`["user"]`として設定します。OIDCのclaim名`user_permission`とSCIM属性名`role`は別の名前です。これらの値はアプリ側には保存しません。パスワードを送信するため、`GLUU_SCIM_VERIFY_SSL=true`にして、Gluuの証明書を発行した信頼できるCAをアプリ環境に設定してください。TLS証明書検証を無効にしたままでは、通信を傍受されパスワードが漏れるおそれがあります。
 

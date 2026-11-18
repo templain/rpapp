@@ -33,6 +33,8 @@ class GluuOIDCAuthenticationBackend(OIDCAuthenticationBackend):
         if user is None:
             return None
 
+        self._sync_user_name(user, user_info)
+
         permission = self._get_permission_claim(payload, user_info)
         if permission is None:
             raise OIDCUserPermissionError(
@@ -75,3 +77,31 @@ class GluuOIDCAuthenticationBackend(OIDCAuthenticationBackend):
             if "user_permission" in claims:
                 return claims["user_permission"]
         return None
+
+    @staticmethod
+    def _sync_user_name(user, claims):
+        given_name = claims.get("given_name")
+        family_name = claims.get("family_name")
+        full_name = claims.get("name")
+
+        updates = {}
+        if isinstance(given_name, str) and given_name.strip():
+            updates["first_name"] = given_name.strip()[:150]
+        elif (
+            not isinstance(family_name, str) or not family_name.strip()
+        ) and isinstance(full_name, str) and full_name.strip():
+            updates["first_name"] = full_name.strip()[:150]
+            updates["last_name"] = ""
+
+        if isinstance(family_name, str) and family_name.strip():
+            updates["last_name"] = family_name.strip()[:150]
+
+        changed_fields = [
+            field
+            for field, value in updates.items()
+            if getattr(user, field) != value
+        ]
+        if changed_fields:
+            for field in changed_fields:
+                setattr(user, field, updates[field])
+            user.save(update_fields=changed_fields)

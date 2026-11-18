@@ -2,7 +2,7 @@
 {% block title %}Todo一覧{% endblock %}
 {% block content %}
 <div class="row">
-  <div><h1>Todo一覧</h1><p class="muted">{{ user.get_username }} さんのTodo</p></div>
+  <div><h1>Todo一覧</h1><p class="muted">{{ user.get_full_name|default:user.get_username }} さんのTodo</p></div>
   <a class="button" href="{% url 'todo-create' %}">Todoを追加</a>
 </div>
 {% for todo in todos %}
