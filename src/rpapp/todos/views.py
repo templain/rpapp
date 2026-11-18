@@ -69,6 +69,7 @@ def user_create(request: HttpRequest) -> HttpResponse:
                 email=form.cleaned_data["email"],
                 given_name=form.cleaned_data["given_name"],
                 family_name=form.cleaned_data["family_name"],
+                password=form.cleaned_data["password"],
             )
         except ScimError as exc:
             form.add_error(None, str(exc))

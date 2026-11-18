@@ -1,3 +1,4 @@
+import json
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
@@ -9,7 +10,11 @@ from django.urls import reverse
 
 from rpapp.todos.models import Todo
 from rpapp.todos.oidc import build_logout_url
-from rpapp.todos.scim import list_users
+from rpapp.todos.authentication import (
+    GluuOIDCAuthenticationBackend,
+    OIDCUserPermissionError,
+)
+from rpapp.todos.scim import ScimError, _request, create_user, list_users
 
 
 class TodoAccessTests(TestCase):
@@ -110,6 +115,144 @@ class TodoAccessTests(TestCase):
 
 
 class ScimApiTests(TestCase):
+    @override_settings(
+        SCIM_BASE_URL="https://scim.example.test/scim/v2",
+        OIDC_OP_TOKEN_ENDPOINT="https://gluu.example.test/oxauth/restv1/token",
+        SCIM_CLIENT_ID="scim-client",
+        SCIM_CLIENT_SECRET="scim-secret",
+        SCIM_SCOPE="",
+        SCIM_TOKEN_AUTH_METHOD="client_secret_basic",
+        SCIM_VERIFY_SSL=False,
+    )
+    @patch("rpapp.todos.scim.cache")
+    @patch("rpapp.todos.scim.requests.request")
+    @patch("rpapp.todos.scim._get_scim_access_token", return_value="test-access-token")
+    def test_scim_error_response_body_is_logged_with_secrets_redacted(
+        self, get_access_token, request, token_cache
+    ):
+        response = request.return_value
+        response.ok = False
+        response.status_code = 400
+        response.text = json.dumps(
+            {
+                "detail": "Invalid SCIM attribute",
+                "password": "do-not-log-this",
+            }
+        )
+
+        with self.assertLogs("rpapp.todos.scim", level="ERROR") as logs:
+            with self.assertRaisesRegex(ScimError, "HTTP 400"):
+                _request("POST", "/Users", json={"userName": "new-user"})
+
+        self.assertIn("Invalid SCIM attribute", logs.output[0])
+        self.assertIn("[REDACTED]", logs.output[0])
+        self.assertNotIn("do-not-log-this", logs.output[0])
+
+    @patch("rpapp.todos.scim._request")
+    def test_create_user_sends_password_as_scim_attribute(self, request):
+        request.return_value = {"userName": "new-user"}
+
+        result = create_user(
+            user_name="new-user",
+            email="new@example.test",
+            given_name="New",
+            family_name="User",
+            password="example-initial-password",
+        )
+
+        self.assertEqual(result["userName"], "new-user")
+        payload = request.call_args.kwargs["json"]
+        self.assertEqual(payload["password"], "example-initial-password")
+        gluu_extension = "urn:ietf:params:scim:schemas:extension:gluu:2.0:User"
+        self.assertIn(gluu_extension, payload["schemas"])
+        self.assertEqual(payload[gluu_extension]["role"], ["user"])
+        self.assertNotIn("user_permission", payload)
+
+    @override_settings(
+        SCIM_BASE_URL="https://scim.example.test/scim/v2",
+        OIDC_OP_TOKEN_ENDPOINT="https://gluu.example.test/oxauth/restv1/token",
+        SCIM_CLIENT_ID="scim-client",
+        SCIM_CLIENT_SECRET="scim-secret",
+        SCIM_SCOPE="https://gluu.org/scim/users.read https://gluu.org/scim/users.write",
+        SCIM_TOKEN_AUTH_METHOD="client_secret_basic",
+        SCIM_VERIFY_SSL=False,
+    )
+    @patch("rpapp.todos.scim.cache")
+    @patch("rpapp.todos.scim.requests.request")
+    @patch("rpapp.todos.scim.requests.post")
+    def test_oauth_client_credentials_token_is_used_for_scim(
+        self, token_request, scim_request, token_cache
+    ):
+        token_cache.get.return_value = None
+        token_response = token_request.return_value
+        token_response.ok = True
+        token_response.json.return_value = {
+            "access_token": "oauth-access-token",
+            "expires_in": 300,
+        }
+        scim_response = scim_request.return_value
+        scim_response.ok = True
+        scim_response.json.return_value = {}
+
+        result = _request("GET", "/Users")
+
+        self.assertEqual(result, {})
+        self.assertEqual(
+            token_request.call_args.args,
+            ("https://gluu.example.test/oxauth/restv1/token",),
+        )
+        self.assertEqual(
+            token_request.call_args.kwargs["data"]["grant_type"],
+            "client_credentials",
+        )
+        self.assertEqual(
+            token_request.call_args.kwargs["auth"].username,
+            "scim-client",
+        )
+        self.assertFalse(token_request.call_args.kwargs["verify"])
+        self.assertEqual(
+            scim_request.call_args.kwargs["headers"]["Authorization"],
+            "Bearer oauth-access-token",
+        )
+        self.assertFalse(scim_request.call_args.kwargs["verify"])
+        token_cache.set.assert_called_once()
+
+    @override_settings(
+        SCIM_BASE_URL="https://scim.example.test/scim/v2",
+        OIDC_OP_TOKEN_ENDPOINT="https://gluu.example.test/oxauth/restv1/token",
+        SCIM_CLIENT_ID="scim-client",
+        SCIM_CLIENT_SECRET="scim-secret",
+        SCIM_SCOPE="",
+        SCIM_TOKEN_AUTH_METHOD="client_secret_post",
+        SCIM_VERIFY_SSL=True,
+    )
+    @patch("rpapp.todos.scim.cache")
+    @patch("rpapp.todos.scim.requests.request")
+    @patch("rpapp.todos.scim.requests.post")
+    def test_client_secret_post_is_supported(
+        self, token_request, scim_request, token_cache
+    ):
+        token_cache.get.return_value = None
+        token_request.return_value.ok = True
+        token_request.return_value.json.return_value = {
+            "access_token": "oauth-access-token",
+            "expires_in": 300,
+        }
+        scim_request.return_value.ok = True
+        scim_request.return_value.json.return_value = {}
+
+        _request("GET", "/Users")
+
+        self.assertIsNone(token_request.call_args.kwargs["auth"])
+        self.assertEqual(
+            token_request.call_args.kwargs["data"],
+            {
+                "grant_type": "client_credentials",
+                "client_id": "scim-client",
+                "client_secret": "scim-secret",
+            },
+        )
+
     @patch("rpapp.todos.scim._request")
     def test_user_listing_follows_scim_pages(self, request):
         request.side_effect = [
@@ -129,3 +272,97 @@ class ScimApiTests(TestCase):
 
         self.assertEqual([user["userName"] for user in users], ["first", "second"])
         self.assertEqual(request.call_count, 2)
+
+
+class GluuOIDCAdminPermissionTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="oidc-user", email="oidc@example.test"
+        )
+        self.backend = GluuOIDCAuthenticationBackend()
+        self.userinfo: dict[str, object] = {"email": self.user.email}
+        self._patch_backend_method("get_userinfo", return_value=self.userinfo)
+        self._patch_backend_method("verify_claims", return_value=True)
+        self._patch_backend_method(
+            "filter_users_by_claims", return_value=[self.user]
+        )
+        self._patch_backend_method("update_user", return_value=self.user)
+        self._patch_backend_method("create_user", return_value=self.user)
+
+    def _patch_backend_method(self, method_name, **kwargs):
+        patcher = patch.object(self.backend, method_name, **kwargs)
+        mocked_method = patcher.start()
+        self.addCleanup(patcher.stop)
+        return mocked_method
+
+    @override_settings(
+        OIDC_OP_AUTHORIZATION_ENDPOINT="https://gluu.example.test/authorize",
+        OIDC_RP_CLIENT_ID="test-client-id",
+    )
+    def test_login_request_includes_view_profile_scope(self):
+        response = self.client.get(
+            reverse("oidc_authentication_init"),
+            secure=True,
+        )
+
+        scopes = parse_qs(urlsplit(response["Location"]).query)["scope"][0].split()
+        self.assertIn("view_profile", scopes)
+
+    def test_admin_claim_in_id_token_grants_staff(self):
+        with self.assertLogs("rpapp.todos.authentication", level="INFO") as logs:
+            result = self.backend.get_or_create_user(
+                "access-token", "id-token", {"user_permission": "admin"}
+            )
+
+        self.user.refresh_from_db()
+        self.assertEqual(result, self.user)
+        self.assertTrue(self.user.is_staff)
+        self.assertIn("role=admin", logs.output[0])
+
+    def test_general_user_login_is_logged(self):
+        with self.assertLogs("rpapp.todos.authentication", level="INFO") as logs:
+            self.backend.get_or_create_user(
+                "access-token", "id-token", {"user_permission": "todo_user"}
+            )
+
+        self.assertIn("role=general", logs.output[0])
+
+    def test_admin_claim_in_userinfo_grants_staff(self):
+        self.userinfo["user_permission"] = ["todo_user", "admin"]
+        self.backend.get_or_create_user(
+            "access-token", "id-token", {}
+        )
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_staff)
+
+    def test_missing_admin_claim_revokes_staff_on_next_login(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+
+        self.backend.get_or_create_user(
+            "access-token", "id-token", {"user_permission": "todo_user"}
+        )
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_staff)
+
+    def test_non_admin_substring_does_not_grant_staff(self):
+        self.backend.get_or_create_user(
+            "access-token", "id-token", {"user_permission": "not-admin"}
+        )
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_staff)
+
+    def test_missing_permission_claim_raises_error(self):
+        with self.assertRaisesRegex(
+            OIDCUserPermissionError, "claim 'user_permission' is missing"
+        ):
+            self.backend.get_or_create_user("access-token", "id-token", {})
+
+    def test_invalid_permission_claim_raises_error(self):
+        with self.assertRaises(OIDCUserPermissionError):
+            self.backend.get_or_create_user(
+                "access-token", "id-token", {"user_permission": {"role": "admin"}}
+            )

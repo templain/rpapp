@@ -18,3 +18,10 @@ class ScimUserForm(forms.Form):
     email = forms.EmailField(label="メールアドレス")
     given_name = forms.CharField(max_length=100, label="名")
     family_name = forms.CharField(max_length=100, label="姓")
+    password = forms.CharField(
+        label="初期パスワード",
+        widget=forms.PasswordInput(
+            attrs={"autocomplete": "new-password"},
+            render_value=False,
+        ),
+    )

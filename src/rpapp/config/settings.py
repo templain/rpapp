@@ -67,7 +67,7 @@ DATABASES = {
 }
 
 AUTHENTICATION_BACKENDS = [
-    "mozilla_django_oidc.auth.OIDCAuthenticationBackend",
+    "rpapp.todos.authentication.GluuOIDCAuthenticationBackend",
     "django.contrib.auth.backends.ModelBackend",
 ]
 
@@ -87,15 +87,24 @@ OIDC_OP_AUTHORIZATION_ENDPOINT = os.environ.get("GLUU_OIDC_AUTHORIZATION_ENDPOIN
 OIDC_OP_TOKEN_ENDPOINT = os.environ.get("GLUU_OIDC_TOKEN_ENDPOINT", "")
 OIDC_OP_USER_ENDPOINT = os.environ.get("GLUU_OIDC_USERINFO_ENDPOINT", "")
 OIDC_OP_JWKS_ENDPOINT = os.environ.get("GLUU_OIDC_JWKS_ENDPOINT", "")
-OIDC_RP_SCOPES = "openid email profile"
+OIDC_RP_SCOPES = "openid email profile view_profile"
 OIDC_TOKEN_USE_BASIC_AUTH = True
 OIDC_VERIFY_SSL = True if os.environ.get("GLUU_OIDC_VERIFY_SSL", "true").lower() == "true" else False
 OIDC_USE_NONCE = True
 OIDC_CREATE_USER = True
 
 SCIM_BASE_URL = os.environ.get("GLUU_SCIM_BASE_URL", "").rstrip("/")
-SCIM_BEARER_TOKEN = os.environ.get("GLUU_SCIM_BEARER_TOKEN", "")
+SCIM_CLIENT_ID = os.environ.get("GLUU_SCIM_CLIENT_ID", "")
+SCIM_CLIENT_SECRET = os.environ.get("GLUU_SCIM_CLIENT_SECRET", "")
+SCIM_SCOPE = os.environ.get(
+    "GLUU_SCIM_SCOPE",
+    "https://gluu.org/scim/users.read https://gluu.org/scim/users.write",
+)
+SCIM_TOKEN_AUTH_METHOD = os.environ.get(
+    "GLUU_SCIM_TOKEN_AUTH_METHOD", "client_secret_basic"
+)
 SCIM_TIMEOUT_SECONDS = float(os.environ.get("GLUU_SCIM_TIMEOUT_SECONDS", "10"))
+SCIM_VERIFY_SSL = os.environ.get("GLUU_SCIM_VERIFY_SSL", "false").lower() == "true"
 
 LANGUAGE_CODE = "ja"
 TIME_ZONE = "Asia/Tokyo"
@@ -104,3 +113,26 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "INFO",
+        },
+    },
+    "loggers": {
+        "rpapp.todos.authentication": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "rpapp.todos.scim": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}

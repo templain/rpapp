@@ -22,11 +22,16 @@ uv run python manage.py runsslserver 127.0.0.1:8000
 この開発URLをGluuのクライアント設定から利用する場合、Login Redirect URIには `https://127.0.0.1:8000/oidc/callback/` を登録してください。ホスト名やポートを変えた場合は、実際にブラウザーからアクセスするHTTPS URLに合わせて変更します。
 Gluuからログアウト後に戻るURI `https://127.0.0.1:8000/` も、クライアントのPost Logout Redirect URIsに登録してください。
 
-`createsuperuser`で登録したアカウントは`/django-admin/`で使えます。Gluu OIDCでログインするアカウントに管理画面アクセス権を付与するには、Djangoシェルで該当ユーザーに`is_staff=True`を設定してください。管理者用画面は`/manage/users/`です。
+`createsuperuser`で登録したアカウントは`/django-admin/`で使えます。Gluu OIDCログインでは、IDトークンまたはUserInfoの`user_permission` claimが文字列`admin`または`admin`を含む文字列配列の場合に、そのDjangoユーザーを`is_staff=True`に同期します。claimがない、または文字列／文字列配列以外の場合は認証処理がエラーになります。管理者用画面は`/manage/users/`です。権限変更は次回OIDCログイン時に反映されます。
 
 ## 環境変数
 
 アプリはプロジェクトルートの`.env`を読み込みます。`.env.sample`をコピーし、OIDCのURLはGluu Server 4.4.0環境ごとのOIDC設定またはディスカバリー情報に記載された値に置き換えてください。推測した固定URLは使いません。
+
+OIDCログイン要求では`openid email profile view_profile`のscopeを要求します。Gluuクライアントで`view_profile`を許可し、そのscopeのClaimsにoxAuth claim nameが`user_permission`のclaimを含めてください。claimはIDトークンまたはUserInfoのいずれかで返される必要があります。
+
+
+ユーザー登録画面で指定した初期パスワードは、SCIM `POST /Users`のトップレベル`password`属性としてGluuへ送信されます。権限はGluuのUser拡張スキーマ内の多値属性`role`に`["user"]`として設定します。OIDCのclaim名`user_permission`とSCIM属性名`role`は別の名前です。これらの値はアプリ側には保存しません。パスワードを送信するため、`GLUU_SCIM_VERIFY_SSL=true`にして、Gluuの証明書を発行した信頼できるCAをアプリ環境に設定してください。TLS証明書検証を無効にしたままでは、通信を傍受されパスワードが漏れるおそれがあります。
 
 | 変数 | 用途 |
 | --- | --- |
@@ -42,11 +47,14 @@ Gluuからログアウト後に戻るURI `https://127.0.0.1:8000/` も、クラ�
 | `GLUU_OIDC_END_SESSION_ENDPOINT` | OIDCディスカバリー情報の`end_session_endpoint` |
 | `GLUU_OIDC_SIGN_ALGO` | IDトークン署名アルゴリズム（既定値`RS256`） |
 | `GLUU_SCIM_BASE_URL` | Gluu SCIM APIのベースURL（`/Users`を含めない） |
-| `GLUU_SCIM_BEARER_TOKEN` | SCIM API用Bearerトークン |
+| `GLUU_SCIM_CLIENT_ID` / `GLUU_SCIM_CLIENT_SECRET` | SCIM用にGluuで登録したOAuthクライアントID（通常はoxTrustのクライアントID/inum）とsecret。`client_credentials` grantを許可 |
+| `GLUU_SCIM_SCOPE` | SCIM OAuth scope。既定値は`https://gluu.org/scim/users.read https://gluu.org/scim/users.write` |
+| `GLUU_SCIM_TOKEN_AUTH_METHOD` | Token Endpoint認証方式。`client_secret_basic`（既定）または`client_secret_post` |
 | `GLUU_SCIM_TIMEOUT_SECONDS` | SCIM HTTPタイムアウト秒数（既定値`10`） |
+| `GLUU_SCIM_VERIFY_SSL` | SCIMのTLS証明書を検証するか（`false`で無効。既定値`false`） |
 | `SQLITE_PATH` | SQLiteファイルパス（既定値`db.sqlite3`） |
 
-OIDCのクライアントID/シークレットと各エンドポイント、SCIMのURL/トークンを`.env`に設定してからアプリを利用してください。TLS証明書検証は有効のままです。`.env`はGit管理対象外です。秘密値を`.env.sample`やソースコードに記載せず、サンプルの値を実際の設定・秘密情報に置き換えてください。
+OIDCのクライアントID/シークレットと各エンドポイント、SCIMのURL/トークンを`.env`に設定してからアプリを利用してください。SCIMのTLS証明書検証は既定で無効です。これは自己署名証明書を使う開発環境向けであり、通信を傍受・偽装される危険があるため、本番環境では`GLUU_SCIM_VERIFY_SSL=true`にして信頼されたCA証明書を設定してください。`.env`はGit管理対象外です。秘密値を`.env.sample`やソースコードに記載せず、サンプルの値を実際の設定・秘密情報に置き換えてください。
 
 ## 画面と認可
 
