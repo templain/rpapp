@@ -14,7 +14,7 @@ from rpapp.todos.authentication import (
     GluuOIDCAuthenticationBackend,
     OIDCUserPermissionError,
 )
-from rpapp.todos.scim import ScimError, _request, create_user, list_users
+from rpapp.todos.scim import ScimError, _request, create_user, delete_user, list_users
 
 
 class TodoAccessTests(TestCase):
@@ -114,7 +114,92 @@ class TodoAccessTests(TestCase):
         self.assertTrue(response.url.startswith("/oidc/authenticate/"))
 
 
+class ScimUserManagementViewTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(
+            username="admin", password="test-pass", is_staff=True
+        )
+
+    @patch("rpapp.todos.views.list_users", return_value=[
+        {"id": "user-123", "userName": "sample-user", "active": True}
+    ])
+    def test_user_row_has_csrf_protected_delete_button(self, list_users_mock):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("user-list"))
+
+        self.assertContains(response, 'action="/manage/users/user-123/delete/"')
+        self.assertContains(response, 'method="post"')
+        self.assertContains(response, 'name="csrfmiddlewaretoken"')
+
+    @patch("rpapp.todos.views.delete_user")
+    def test_delete_user_calls_scim_and_redirects(self, delete_user_mock):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("user-delete", kwargs={"user_id": "user-123"})
+        )
+
+        self.assertRedirects(response, reverse("user-list"), fetch_redirect_response=False)
+        delete_user_mock.assert_called_once_with("user-123")
+
+    @patch("rpapp.todos.views.delete_user")
+    def test_delete_user_rejects_get(self, delete_user_mock):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("user-delete", kwargs={"user_id": "user-123"})
+        )
+
+        self.assertEqual(response.status_code, 405)
+        delete_user_mock.assert_not_called()
+
+    @patch("rpapp.todos.views.delete_user")
+    def test_non_admin_cannot_delete_scim_user(self, delete_user_mock):
+        user = get_user_model().objects.create_user(username="regular")
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("user-delete", kwargs={"user_id": "user-123"})
+        )
+
+        self.assertEqual(response.status_code, 302)
+        delete_user_mock.assert_not_called()
+
+
 class ScimApiTests(TestCase):
+    @override_settings(
+        SCIM_BASE_URL="https://scim.example.test/scim/v2",
+        OIDC_OP_TOKEN_ENDPOINT="https://gluu.example.test/oxauth/restv1/token",
+        SCIM_CLIENT_ID="scim-client",
+        SCIM_CLIENT_SECRET="scim-secret",
+        SCIM_SCOPE="",
+        SCIM_TOKEN_AUTH_METHOD="client_secret_basic",
+        SCIM_VERIFY_SSL=True,
+    )
+    @patch("rpapp.todos.scim._get_scim_access_token", return_value="test-access-token")
+    @patch("rpapp.todos.scim.requests.request")
+    def test_delete_user_uses_scim_delete_and_accepts_no_content(
+        self, request, get_access_token
+    ):
+        response = request.return_value
+        response.ok = True
+        response.status_code = 204
+        response.text = ""
+
+        self.assertIsNone(delete_user("user-123"))
+        request.assert_called_once()
+        self.assertEqual(request.call_args.args[:2], (
+            "DELETE",
+            "https://scim.example.test/scim/v2/Users/user-123",
+        ))
+
+    def test_user_id_is_escaped_in_scim_path(self):
+        with patch("rpapp.todos.scim._request") as request:
+            delete_user("id/with/slash")
+
+        request.assert_called_once_with("DELETE", "/Users/id%2Fwith%2Fslash")
+
     @override_settings(
         SCIM_BASE_URL="https://scim.example.test/scim/v2",
         OIDC_OP_TOKEN_ENDPOINT="https://gluu.example.test/oxauth/restv1/token",

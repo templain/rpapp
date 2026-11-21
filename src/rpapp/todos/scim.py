@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import re
+from urllib.parse import quote
 
 import requests
 from django.conf import settings
@@ -162,6 +163,8 @@ def _request(method: str, path: str, **kwargs) -> dict:
         raise ScimError(
             f"SCIMサーバーがユーザー操作を拒否しました (HTTP {response.status_code})。"
         )
+    if response.status_code == 204:
+        return {}
     try:
         return response.json()
     except requests.exceptions.JSONDecodeError as exc:
@@ -219,3 +222,9 @@ def create_user(
         gluu_user_extension: {"role": ["user"]},
     }
     return _request("POST", "/Users", json=payload)
+
+
+def delete_user(user_id: str) -> None:
+    if not user_id:
+        raise ScimError("削除対象のユーザーIDが指定されていません。")
+    _request("DELETE", f"/Users/{quote(user_id, safe='')}")

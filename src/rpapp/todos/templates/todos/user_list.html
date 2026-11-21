@@ -8,7 +8,7 @@
 {% if users %}
 <div class="card">
   <table>
-    <thead><tr><th>ユーザー名</th><th>氏名</th><th>メール</th><th>状態</th></tr></thead>
+    <thead><tr><th>ユーザー名</th><th>氏名</th><th>メール</th><th>状態</th><th>操作</th></tr></thead>
     <tbody>
       {% for account in users %}
       <tr>
@@ -16,6 +16,12 @@
         <td>{{ account.name.givenName }} {{ account.name.familyName }}</td>
         <td>{% for email in account.emails %}{% if email.primary %}{{ email.value }}{% endif %}{% empty %}—{% endfor %}</td>
         <td>{% if account.active %}有効{% else %}無効{% endif %}</td>
+        <td>
+          <form method="post" action="{% url 'user-delete' user_id=account.id %}">
+            {% csrf_token %}
+            <button type="submit">削除</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
     </tbody>

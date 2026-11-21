@@ -6,7 +6,7 @@ from django.views.decorators.http import require_POST
 
 from rpapp.todos.forms import ScimUserForm, TodoForm
 from rpapp.todos.models import Todo
-from rpapp.todos.scim import ScimError, create_user, list_users
+from rpapp.todos.scim import ScimError, create_user, delete_user, list_users
 
 
 def todo_list(request: HttpRequest) -> HttpResponse:
@@ -77,3 +77,15 @@ def user_create(request: HttpRequest) -> HttpResponse:
             messages.success(request, "SCIM経由でユーザーを登録しました。")
             return redirect("user-list")
     return render(request, "todos/user_form.html", {"form": form})
+
+
+@user_passes_test(is_admin)
+@require_POST
+def user_delete(request: HttpRequest, user_id: str) -> HttpResponse:
+    try:
+        delete_user(user_id)
+    except ScimError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "SCIM経由でユーザーを削除しました。")
+    return redirect("user-list")
