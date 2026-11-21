@@ -91,6 +91,13 @@ OIDC_RP_SCOPES = "openid email profile view_profile"
 OIDC_TOKEN_USE_BASIC_AUTH = True
 OIDC_VERIFY_SSL = True if os.environ.get("GLUU_OIDC_VERIFY_SSL", "true").lower() == "true" else False
 OIDC_USE_NONCE = True
+OIDC_USE_PKCE = True
+OIDC_PKCE_CODE_CHALLENGE_METHOD = os.environ.get(
+    "GLUU_OIDC_PKCE_CODE_CHALLENGE_METHOD", "S256"
+)
+OIDC_PKCE_CODE_VERIFIER_SIZE = int(
+    os.environ.get("GLUU_OIDC_PKCE_CODE_VERIFIER_SIZE", "64")
+)
 OIDC_CREATE_USER = True
 
 SCIM_BASE_URL = os.environ.get("GLUU_SCIM_BASE_URL", "").rstrip("/")

@@ -30,6 +30,8 @@ Gluuからログアウト後に戻るURI `https://127.0.0.1:8000/` も、クラ�
 
 OIDCログイン要求では`openid email profile view_profile`のscopeを要求します。Gluuクライアントで`view_profile`を許可し、そのscopeのClaimsにoxAuth claim nameが`user_permission`のclaimを含めてください。claimはIDトークンまたはUserInfoのいずれかで返される必要があります。
 
+OIDCの認証コードフローではPKCEを常に使用します。認可リクエストにはランダムなcode verifierから生成した`code_challenge`と`code_challenge_method=S256`を含め、トークンリクエストではセッションに保存したcode verifierを送信します。これにより認証コードの横取りリスクを低減します。PKCEはブラウザーを介するOIDC認証に適用され、サーバー間のSCIM OAuth 2.0 `client_credentials`フローには適用しません。
+
 Todo一覧のユーザー表示名は、Gluu UserInfoの`given_name`と`family_name`を優先して使用します。これらがない場合は`name`を使用し、名前claimがない場合に限り匿名化されたDjango usernameを表示します。Gluuクライアントから標準OIDCのプロフィールclaimを返すよう設定してください。
 
 
@@ -48,6 +50,8 @@ Todo一覧のユーザー表示名は、Gluu UserInfoの`given_name`と`family_n
 | `GLUU_OIDC_JWKS_ENDPOINT` | 署名検証用JWKSエンドポイント |
 | `GLUU_OIDC_END_SESSION_ENDPOINT` | OIDCディスカバリー情報の`end_session_endpoint` |
 | `GLUU_OIDC_SIGN_ALGO` | IDトークン署名アルゴリズム（既定値`RS256`） |
+| `GLUU_OIDC_PKCE_CODE_CHALLENGE_METHOD` | PKCEのchallenge method（既定値`S256`。認可サーバーがS256をサポートすることが必要） |
+| `GLUU_OIDC_PKCE_CODE_VERIFIER_SIZE` | PKCEのcode verifier文字数（RFC 7636準拠の43～128、既定値`64`） |
 | `GLUU_SCIM_BASE_URL` | Gluu SCIM APIのベースURL（`/Users`を含めない） |
 | `GLUU_SCIM_CLIENT_ID` / `GLUU_SCIM_CLIENT_SECRET` | SCIM用にGluuで登録したOAuthクライアントID（通常はoxTrustのクライアントID/inum）とsecret。`client_credentials` grantを許可 |
 | `GLUU_SCIM_SCOPE` | SCIM OAuth scope。既定値は`https://gluu.org/scim/users.read https://gluu.org/scim/users.write` |

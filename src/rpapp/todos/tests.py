@@ -308,6 +308,21 @@ class GluuOIDCAdminPermissionTests(TestCase):
         scopes = parse_qs(urlsplit(response["Location"]).query)["scope"][0].split()
         self.assertIn("view_profile", scopes)
 
+    def test_login_request_includes_s256_pkce_challenge(self):
+        response = self.client.get(
+            reverse("oidc_authentication_init"),
+            secure=True,
+        )
+
+        query = parse_qs(urlsplit(response["Location"]).query)
+        self.assertEqual(query["code_challenge_method"], ["S256"])
+        self.assertRegex(query["code_challenge"][0], r"^[A-Za-z0-9_-]+$")
+
+        state = query["state"][0]
+        verifier = self.client.session["oidc_states"][state]["code_verifier"]
+        self.assertGreaterEqual(len(verifier), 43)
+        self.assertLessEqual(len(verifier), 128)
+
     def test_admin_claim_in_id_token_grants_staff(self):
         with self.assertLogs("rpapp.todos.authentication", level="INFO") as logs:
             result = self.backend.get_or_create_user(
