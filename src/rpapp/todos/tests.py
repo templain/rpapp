@@ -71,12 +71,20 @@ class TodoAccessTests(TestCase):
         OIDC_OP_LOGOUT_ENDPOINT="https://falcon/oxauth/restv1/end_session",
         OIDC_OP_LOGOUT_URL_METHOD="rpapp.todos.oidc.build_logout_url",
         OIDC_STORE_ID_TOKEN=True,
+        OIDC_STORE_ACCESS_TOKEN=True,
         OIDC_RP_CLIENT_ID="test-client-id",
+        OIDC_OP_USER_ENDPOINT="https://falcon/oidc/userinfo",
+        OIDC_VERIFY_SSL=True,
     )
-    def test_logout_redirects_to_gluu_with_id_token_hint(self):
+    @patch("rpapp.todos.oidc.requests.get")
+    def test_logout_redirects_to_gluu_with_id_token_hint(
+        self, get_userinfo
+    ):
+        get_userinfo.return_value.status_code = 200
         self.client.force_login(self.owner)
         session = self.client.session
         session["oidc_id_token"] = "test-id-token"
+        session["oidc_access_token"] = "test-access-token"
         session.save()
 
         response = self.client.post(reverse("oidc_logout"), secure=True)
@@ -93,6 +101,34 @@ class TodoAccessTests(TestCase):
             ["https://testserver/"],
         )
         self.assertEqual(query["id_token_hint"], ["test-id-token"])
+        get_userinfo.assert_called_once()
+        self.assertEqual(
+            get_userinfo.call_args.kwargs["headers"]["Authorization"],
+            "Bearer test-access-token",
+        )
+
+    @override_settings(
+        OIDC_OP_LOGOUT_ENDPOINT="https://falcon/oxauth/restv1/end_session",
+        OIDC_OP_LOGOUT_URL_METHOD="rpapp.todos.oidc.build_logout_url",
+        OIDC_STORE_ID_TOKEN=True,
+        OIDC_STORE_ACCESS_TOKEN=True,
+        OIDC_RP_CLIENT_ID="test-client-id",
+        OIDC_OP_USER_ENDPOINT="https://falcon/oidc/userinfo",
+        OIDC_VERIFY_SSL=True,
+    )
+    @patch("rpapp.todos.oidc.requests.get")
+    def test_expired_gluu_session_skips_end_session(self, get_userinfo):
+        get_userinfo.return_value.status_code = 401
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session["oidc_id_token"] = "test-id-token"
+        session["oidc_access_token"] = "test-access-token"
+        session.save()
+
+        response = self.client.post(reverse("oidc_logout"), secure=True)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "https://testserver/")
 
     @override_settings(
         OIDC_OP_LOGOUT_ENDPOINT="https://falcon/oxauth/restv1/end_session",
