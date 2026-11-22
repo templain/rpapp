@@ -89,6 +89,7 @@ OIDC_OP_TOKEN_ENDPOINT = os.environ.get("GLUU_OIDC_TOKEN_ENDPOINT", "")
 OIDC_OP_USER_ENDPOINT = os.environ.get("GLUU_OIDC_USERINFO_ENDPOINT", "")
 OIDC_OP_JWKS_ENDPOINT = os.environ.get("GLUU_OIDC_JWKS_ENDPOINT", "")
 OIDC_RP_SCOPES = "openid email profile view_profile"
+OIDC_AUTH_REQUEST_EXTRA_PARAMS = {"prompt": "login"}
 OIDC_TOKEN_USE_BASIC_AUTH = True
 OIDC_VERIFY_SSL = True if os.environ.get("GLUU_OIDC_VERIFY_SSL", "true").lower() == "true" else False
 OIDC_USE_NONCE = True

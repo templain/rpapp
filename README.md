@@ -36,6 +36,8 @@ OIDCログイン要求では`openid email profile view_profile`のscopeを要求
 
 OIDCの認証コードフローではPKCEを常に使用します。認可リクエストにはランダムなcode verifierから生成した`code_challenge`と`code_challenge_method=S256`を含め、トークンリクエストではセッションに保存したcode verifierを送信します。これにより認証コードの横取りリスクを低減します。PKCEはブラウザーを介するOIDC認証に適用され、サーバー間のSCIM OAuth 2.0 `client_credentials`フローには適用しません。
 
+認可リクエストには`prompt=login`を付与し、Gluuですでに認証済みでもユーザーにログイン操作を要求します。
+
 Todo一覧のユーザー表示名は、Gluu UserInfoの`given_name`と`family_name`を優先して使用します。これらがない場合は`name`を使用し、名前claimがない場合に限り匿名化されたDjango usernameを表示します。Gluuクライアントから標準OIDCのプロフィールclaimを返すよう設定してください。
 
 

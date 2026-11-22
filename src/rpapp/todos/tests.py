@@ -430,6 +430,15 @@ class GluuOIDCAdminPermissionTests(TestCase):
         scopes = parse_qs(urlsplit(response["Location"]).query)["scope"][0].split()
         self.assertIn("view_profile", scopes)
 
+    def test_login_request_includes_prompt_login(self):
+        response = self.client.get(
+            reverse("oidc_authentication_init"),
+            secure=True,
+        )
+
+        query = parse_qs(urlsplit(response["Location"]).query)
+        self.assertEqual(query["prompt"], ["login"])
+
     def test_login_request_includes_s256_pkce_challenge(self):
         response = self.client.get(
             reverse("oidc_authentication_init"),
