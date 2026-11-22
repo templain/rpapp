@@ -70,3 +70,8 @@ OIDCのクライアントID/シークレットと各エンドポイント、SCIM
 - `/manage/users/`と`/manage/users/new/`は`is_staff`ユーザーのみアクセス可能です。ユーザー一覧取得と作成はGluu SCIM `GET /Users`、`POST /Users`を呼び出し、ローカルSQLiteにはユーザーを登録しません。
 
 このアプリは画面をDjangoサーバーでレンダリングします。ブラウザー側のJavaScriptやSPAフレームワークは使用しません。
+
+## ログイン画面のGluu Serverへの反映
+```
+sudo curl -fsSL "https://raw.githubusercontent.com/templain/rpapp/master/gluu/custom_login.xhtml"   -o /opt/gluu-server/opt/gluu/jetty/oxauth/custom/pages/auth/custom_login.xhtml
+```
