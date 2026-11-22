@@ -11,7 +11,13 @@ class OIDCUserPermissionError(RuntimeError):
 
 
 class GluuOIDCAuthenticationBackend(OIDCAuthenticationBackend):
+    def verify_token(self, token, **kwargs):
+        payload = super().verify_token(token, **kwargs)
+        self._validate_audience(payload)
+        return payload
+
     def get_or_create_user(self, access_token, id_token, payload):
+        self._validate_audience(payload)
         user_info = self.get_userinfo(access_token, id_token, payload)
         if not self.verify_claims(user_info):
             raise SuspiciousOperation("Claims verification failed")
@@ -70,6 +76,30 @@ class GluuOIDCAuthenticationBackend(OIDCAuthenticationBackend):
             "admin" if is_admin else "general",
         )
         return user
+
+    def _validate_audience(self, payload):
+        client_id = self.get_settings("OIDC_RP_CLIENT_ID", "")
+        audience = payload.get("aud") if isinstance(payload, dict) else None
+
+        if not isinstance(client_id, str) or not client_id:
+            raise SuspiciousOperation(
+                "OIDC client ID is not configured."
+            )
+
+        if isinstance(audience, str):
+            audience_matches = audience == client_id
+        elif isinstance(audience, list):
+            audience_matches = (
+                all(isinstance(item, str) for item in audience)
+                and client_id in audience
+            )
+        else:
+            audience_matches = False
+
+        if not audience_matches:
+            raise SuspiciousOperation(
+                "ID token audience does not match the configured OIDC client ID."
+            )
 
     @staticmethod
     def _get_permission_claim(payload, user_info):

@@ -3,7 +3,7 @@ from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, SuspiciousOperation
 from django.test import TestCase, override_settings
 from django.test.client import RequestFactory
 from django.urls import reverse
@@ -359,6 +359,7 @@ class ScimApiTests(TestCase):
         self.assertEqual(request.call_count, 2)
 
 
+@override_settings(OIDC_RP_CLIENT_ID="test-client-id")
 class GluuOIDCAdminPermissionTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
@@ -411,7 +412,9 @@ class GluuOIDCAdminPermissionTests(TestCase):
     def test_admin_claim_in_id_token_grants_staff(self):
         with self.assertLogs("rpapp.todos.authentication", level="INFO") as logs:
             result = self.backend.get_or_create_user(
-                "access-token", "id-token", {"user_permission": "admin"}
+                "access-token",
+                "id-token",
+                {"aud": "test-client-id", "user_permission": "admin"},
             )
 
         self.user.refresh_from_db()
@@ -422,7 +425,9 @@ class GluuOIDCAdminPermissionTests(TestCase):
     def test_general_user_login_is_logged(self):
         with self.assertLogs("rpapp.todos.authentication", level="INFO") as logs:
             self.backend.get_or_create_user(
-                "access-token", "id-token", {"user_permission": "todo_user"}
+                "access-token",
+                "id-token",
+                {"aud": "test-client-id", "user_permission": "todo_user"},
             )
 
         self.assertIn("role=general", logs.output[0])
@@ -430,7 +435,7 @@ class GluuOIDCAdminPermissionTests(TestCase):
     def test_admin_claim_in_userinfo_grants_staff(self):
         self.userinfo["user_permission"] = ["todo_user", "admin"]
         self.backend.get_or_create_user(
-            "access-token", "id-token", {}
+            "access-token", "id-token", {"aud": "test-client-id"}
         )
 
         self.user.refresh_from_db()
@@ -442,7 +447,7 @@ class GluuOIDCAdminPermissionTests(TestCase):
         self.backend.get_or_create_user(
             "access-token",
             "id-token",
-            {"user_permission": "user"},
+            {"aud": "test-client-id", "user_permission": "user"},
         )
 
         self.user.refresh_from_db()
@@ -455,7 +460,7 @@ class GluuOIDCAdminPermissionTests(TestCase):
         self.backend.get_or_create_user(
             "access-token",
             "id-token",
-            {"user_permission": "user"},
+            {"aud": "test-client-id", "user_permission": "user"},
         )
 
         self.user.refresh_from_db()
@@ -477,7 +482,9 @@ class GluuOIDCAdminPermissionTests(TestCase):
         self.user.save(update_fields=["is_staff"])
 
         self.backend.get_or_create_user(
-            "access-token", "id-token", {"user_permission": "todo_user"}
+            "access-token",
+            "id-token",
+            {"aud": "test-client-id", "user_permission": "todo_user"},
         )
 
         self.user.refresh_from_db()
@@ -485,7 +492,9 @@ class GluuOIDCAdminPermissionTests(TestCase):
 
     def test_non_admin_substring_does_not_grant_staff(self):
         self.backend.get_or_create_user(
-            "access-token", "id-token", {"user_permission": "not-admin"}
+            "access-token",
+            "id-token",
+            {"aud": "test-client-id", "user_permission": "not-admin"},
         )
 
         self.user.refresh_from_db()
@@ -495,10 +504,55 @@ class GluuOIDCAdminPermissionTests(TestCase):
         with self.assertRaisesRegex(
             OIDCUserPermissionError, "claim 'user_permission' is missing"
         ):
-            self.backend.get_or_create_user("access-token", "id-token", {})
+            self.backend.get_or_create_user(
+                "access-token", "id-token", {"aud": "test-client-id"}
+            )
 
     def test_invalid_permission_claim_raises_error(self):
         with self.assertRaises(OIDCUserPermissionError):
             self.backend.get_or_create_user(
-                "access-token", "id-token", {"user_permission": {"role": "admin"}}
+                "access-token",
+                "id-token",
+                {
+                    "aud": "test-client-id",
+                    "user_permission": {"role": "admin"},
+                },
             )
+
+    def test_audience_array_containing_client_id_is_accepted(self):
+        self.backend.get_or_create_user(
+            "access-token",
+            "id-token",
+            {
+                "aud": ["another-client", "test-client-id"],
+                "user_permission": "user",
+            },
+        )
+
+    def test_audience_not_matching_client_id_is_rejected(self):
+        with self.assertRaisesRegex(
+            SuspiciousOperation, "audience does not match"
+        ):
+            self.backend.get_or_create_user(
+                "access-token",
+                "id-token",
+                {"aud": "other-client-id", "user_permission": "user"},
+            )
+
+    def test_missing_audience_is_rejected(self):
+        with self.assertRaisesRegex(SuspiciousOperation, "audience"):
+            self.backend.get_or_create_user(
+                "access-token",
+                "id-token",
+                {"user_permission": "user"},
+            )
+
+    @patch(
+        "mozilla_django_oidc.auth.OIDCAuthenticationBackend.verify_token",
+        return_value={"aud": "other-client-id"},
+    )
+    def test_verify_token_rejects_other_client_audience(self, verify_token):
+        with self.assertRaisesRegex(
+            SuspiciousOperation, "audience does not match"
+        ):
+            self.backend.verify_token("id-token", nonce="nonce")

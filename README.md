@@ -24,6 +24,8 @@ Gluuからログアウト後に戻るURI `https://127.0.0.1:8000/` も、クラ�
 
 `createsuperuser`で登録したアカウントは`/django-admin/`で使えます。Gluu OIDCログインでは、IDトークンまたはUserInfoの`user_permission` claimが文字列`admin`または`admin`を含む文字列配列の場合に、そのDjangoユーザーを`is_staff=True`に同期します。claimがない、または文字列／文字列配列以外の場合は認証処理がエラーになります。管理者用画面は`/manage/users/`です。権限変更は次回OIDCログイン時に反映されます。
 
+IDトークンの`aud` claimは設定されたOIDCクライアントIDと一致する必要があります。`aud`が文字列の場合はクライアントIDそのもの、配列の場合はクライアントIDを含む文字列配列である必要があります。一致しない場合は認証を拒否します。
+
 ## 環境変数
 
 アプリはプロジェクトルートの`.env`を読み込みます。`.env.sample`をコピーし、OIDCのURLはGluu Server 4.4.0環境ごとのOIDC設定またはディスカバリー情報に記載された値に置き換えてください。推測した固定URLは使いません。
